@@ -5,14 +5,14 @@
 # 
 # Author: Christoph Steefel
 
-# In[1]:
+# In[31]:
 
 # Import earth engine and initialize it.
 import ee
 ee.Initialize()
 
 
-# In[2]:
+# In[32]:
 
 # import the feature collections and other items that will be used.
 watershed = ee.FeatureCollection('ft:1A8XfFw11WmvIcOhbU1KkvniNIO_DYfHTJ-FTfdWX')
@@ -133,6 +133,32 @@ get_ipython().run_cell_magic(u'timeit', u'-n 1 -r 1  #Map version', u"results = 
 
 
 # Obviously, the map version is simpler, and provides the advantage of using potentially reusable functions. For example, maskClouds is usable for cloud masking with any LEDAPS surface reflectance image. The outputs are slightly different, as the mapped version keeps the Landsat scene id in the system_index.
+
+# In[26]:
+
+# Identifying days in which the Daymet max temp surpasses 15 degrees in the entire eastriver watershed for some of 2011.
+tempData = ee.ImageCollection('NASA/ORNL/DAYMET').select('tmax')
+tempData = tempData.filterDate('2011-01-01', '2011-12-31')
+tempData = tempData.toList(365)
+
+
+# In[38]:
+
+get_ipython().run_cell_magic(u'timeit', u'-n 1 -r 1 # Use a for-loop', u"length = tempData.length().getInfo()\nresults = []\nfor i in range(length):\n    img = ee.Image(tempData.get(i))\n    result = ee.Number(ee.Image(img.gt(15)).reduceRegion(ee.Reducer.mean(), eastriver.geometry(),\n                                                     scale=1000).get('tmax'))\n    results.append(ee.Algorithms.If(result.eq(1), 1, 0))\nprint(ee.List(results).getInfo())")
+
+
+# In[37]:
+
+# Cache busting
+x = precipData.limit(5000).getInfo()
+
+
+# In[35]:
+
+get_ipython().run_cell_magic(u'timeit', u'-n 1 -r 1 # Use a map mathod', u"def findHighTemp(img):\n    result = ee.Image(img).gt(15).reduceRegion(ee.Reducer.mean(), eastriver.geometry(), scale=1000).get('tmax')\n    return ee.Algorithms.If(ee.Number(result).eq(1), 1, 0)\nprint(tempData.map(findHighTemp).getInfo())")
+
+
+# The for-loop is significantly slower, as it takes less advantage of parallelization.
 
 # In[ ]:
 
